@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#07111f">
+  <meta name="mobile-web-app-capable" content="yes">
+  <title>Circuit Runner</title>
+  <meta name="description" content="Build the circuit. Become the current. Complete the loop before the fault catches you.">
+  <link rel="manifest" href="manifest.webmanifest?v=9">
+  <link rel="icon" href="icons/app-icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="styles.css?v=9">
+</head>
+<body>
+  <div class="rotate-device" role="status" aria-live="polite">
+    <div class="phone-icon" aria-hidden="true"><i></i></div>
+    <strong>Rotate your device 90°</strong>
+    <span>Circuit Runner is designed for landscape play.</span>
+  </div>
+  <main class="game-shell">
+    <header class="topbar">
+      <a class="brand" href="#" aria-label="Circuit Runner home">
+        <span class="brand-mark">CR</span>
+        <span><strong>Circuit Runner</strong><small>DC Training Grid</small></span>
+      </a>
+      <div class="mission-chip"><span id="missionNumber">MISSION 01 / 05</span><strong id="missionName">Light the LED</strong></div>
+      <div class="top-actions">
+        <div class="mode-switch" role="group" aria-label="Game mode">
+          <button id="campaignMode" class="mode-button active" type="button">MISSIONS</button>
+          <button id="endlessMode" class="mode-button" type="button">ENDLESS RUN</button>
+        </div>
+        <button id="installButton" class="icon-button install-button" type="button" hidden>INSTALL APP</button>
+        <button id="soundButton" class="icon-button" type="button" aria-label="Toggle sound">SOUND: OFF</button>
+      </div>
+    </header>
+
+    <section class="workspace">
+      <aside class="briefing panel">
+        <p class="eyebrow">MISSION BRIEF</p>
+        <h1 id="missionTitle">Light the LED.<br><em>Don't burn it out.</em></h1>
+        <p id="missionDescription" class="lede">Choose the series resistor that gives the beacon exactly <strong>20 mA</strong>, then carry the current around the full loop.</p>
+
+        <div class="spec-grid" aria-label="Circuit specifications">
+          <div><span id="specLabel0">SUPPLY</span><strong id="specValue0">9 V</strong></div>
+          <div><span id="specLabel1">LED DROP</span><strong id="specValue1">2 V</strong></div>
+          <div><span id="specLabel2">TARGET</span><strong id="specValue2">20 mA</strong></div>
+        </div>
+
+        <div class="equation-card">
+          <span>DETERMINISTIC CIRCUIT RULE</span>
+          <div id="equationFormula">I = (V<sub>s</sub> − V<sub>LED</sub>) ÷ R</div>
+          <p id="liveEquation" class="live-equation">Choose a resistor to calculate the current.</p>
+          <button id="hintButton" class="text-button" type="button">Show concept hint</button>
+          <p id="hintText" class="hint" hidden>The LED leaves 7 V across the resistor. Use that voltage in Ohm's law.</p>
+        </div>
+
+        <fieldset id="resistorChoices">
+          <legend id="choiceLegend">Install the missing value</legend>
+          <label><input type="radio" name="resistor" value="35"><span><b>35 Ω</b><small>Option A</small></span></label>
+          <label><input type="radio" name="resistor" value="350"><span><b>350 Ω</b><small>Option B</small></span></label>
+          <label><input type="radio" name="resistor" value="3500"><span><b>3.5 kΩ</b><small>Option C</small></span></label>
+        </fieldset>
+
+        <button id="startButton" class="primary-button" type="button" disabled>Close circuit &amp; run <span>→</span></button>
+        <p id="selectionFeedback" class="selection-feedback" aria-live="polite">Select a component to arm the circuit.</p>
+      </aside>
+
+      <section class="playfield panel" aria-label="Game area">
+        <div class="canvas-wrap">
+          <canvas id="gameCanvas" width="1000" height="660"></canvas>
+          <div id="startOverlay" class="canvas-overlay">
+            <strong>COMPLETE THE CIRCUIT</strong>
+            <span id="circuitPrompt">Which resistor produces 20 mA through the 2 V LED?</span>
+          </div>
+          <div id="resultOverlay" class="result-overlay" hidden>
+            <p id="resultLabel" class="eyebrow">MISSION COMPLETE</p>
+            <h2 id="resultTitle">Beacon online</h2>
+            <p id="resultMessage"></p>
+            <div id="resultEquation" class="result-equation"></div>
+            <button id="retryButton" class="primary-button" type="button">Run again <span>↻</span></button>
+          </div>
+        </div>
+
+        <div class="telemetry">
+          <div><span id="pathLabel">CIRCUIT PATH</span><strong id="lapReadout">0 / 1</strong></div>
+          <div><span id="resultMetricLabel">CALCULATED RESULT</span><strong id="currentReadout">—</strong></div>
+          <div><span>RUNNER VOLTAGE</span><strong id="voltageReadout">0.0 V</strong></div>
+          <div class="heat-meter"><span>FAULT DISTANCE</span><div><i id="bossMeter"></i></div></div>
+        </div>
+
+        <div class="controls-bar">
+          <p><kbd>←</kbd><kbd>→</kbd> switch rail &nbsp; <kbd>Space</kbd> pulse jump &nbsp; <kbd>P</kbd> pause</p>
+          <div class="mobile-controls">
+            <button data-action="left" aria-label="Move left">←</button>
+            <button data-action="jump" aria-label="Pulse jump">↑</button>
+            <button data-action="right" aria-label="Move right">→</button>
+          </div>
+        </div>
+      </section>
+    </section>
+
+    <footer>
+      <span>Rule in play: <strong>current is the same everywhere in this series loop</strong></span>
+      <span>BUILD 0.5 // 30 MISSIONS + ENDLESS</span>
+    </footer>
+  </main>
+  <script src="physics.js?v=9"></script>
+  <script src="levels.js?v=9"></script>
+  <script src="game.js?v=9"></script>
+  <script src="pwa.js?v=9"></script>
+</body>
+</html>
