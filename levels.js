@@ -38,7 +38,15 @@
     return shuffle(rng, unique.map(value => Object.freeze({ value, label: formatter(value) })));
   }
   function freeze(config, correctValue) {
-    return Object.freeze({ ...config, correctValue, choices: Object.freeze(config.choices) });
+    const sourceSpec = config.specs.find(([label]) => ['SUPPLY','VOLTAGE','INPUT','BRANCH VOLTAGE'].includes(label));
+    const circuit = config.circuit || {
+      topology:['parallel','mixed'].includes(config.type) ? config.type : 'series',
+      source:sourceSpec ? sourceSpec[1] : null,
+      components:config.specs
+        .filter(([label]) => label !== 'FIND' && (!sourceSpec || label !== sourceSpec[0]))
+        .map(([label,value]) => ({ kind:/R|RESIST|LOAD/.test(label) ? 'resistor' : 'meter', label, value }))
+    };
+    return Object.freeze({ ...config, circuit:Object.freeze({ ...circuit, components:Object.freeze(circuit.components.map(Object.freeze)) }), correctValue, choices: Object.freeze(config.choices) });
   }
 
   function ledMission(rng) {
@@ -47,7 +55,7 @@
     const targetMA = pick(rng, [10, 20, 25]);
     const target = targetMA / 1000;
     const resistor = P.ohmsResistance(supply - ledDrop, target);
-    return freeze({ id:'led-resistor', title:'Light the LED', accent:'Don\'t burn it out.', type:'led', metric:'CURRENT', unit:'A', description:`Choose the series resistor that gives the beacon exactly ${targetMA} mA.`, specs:[['SUPPLY',volts(supply)],['LED DROP',volts(ledDrop)],['TARGET',`${targetMA} mA`]], formula:'I = (Vs − VLED) ÷ R', prompt:`Which resistor produces ${targetMA} mA through the ${volts(ledDrop)} LED?`, choices:choices(rng,resistor,[resistor/10,resistor*10],ohms), target, calculate:r=>P.ledSeriesCurrent(supply,ledDrop,r), equation:(r,a)=>`I = (${volts(supply)} − ${volts(ledDrop)}) ÷ ${ohms(r)} = ${amps(a)}`, success:'You delivered the LED’s rated current without overheating it.' }, resistor);
+    return freeze({ id:'led-resistor', title:'Light the LED', accent:'Don\'t burn it out.', type:'led', metric:'CURRENT', unit:'A', description:`Choose the series resistor that gives the beacon exactly ${targetMA} mA.`, specs:[['SUPPLY',volts(supply)],['LED DROP',volts(ledDrop)],['TARGET',`${targetMA} mA`]], circuit:{topology:'series',source:volts(supply),components:[{kind:'resistor',label:'R',value:'?'},{kind:'led',label:'LED',value:volts(ledDrop)}]}, formula:'I = (Vs − VLED) ÷ R', prompt:`Which resistor produces ${targetMA} mA through the ${volts(ledDrop)} LED?`, choices:choices(rng,resistor,[resistor/10,resistor*10],ohms), target, calculate:r=>P.ledSeriesCurrent(supply,ledDrop,r), equation:(r,a)=>`I = (${volts(supply)} − ${volts(ledDrop)}) ÷ ${ohms(r)} = ${amps(a)}`, success:'You delivered the LED’s rated current without overheating it.' }, resistor);
   }
 
   function currentMission(rng) {
@@ -62,7 +70,7 @@
 
   function seriesTotalMission(rng) {
     const rs=[pick(rng,[4,5,6,8,10]),pick(rng,[10,12,15,18]),pick(rng,[20,22,25,30])]; const total=P.seriesResistance(rs);
-    return answerMission(rng,{id:'series-total',title:'Stack the barriers',accent:'Series resistance adds.',type:'series',metric:'TOTAL RESISTANCE',unit:'Ω',description:'Reduce three series resistors to a single equivalent resistance.',specs:rs.map((r,i)=>[`R${i+1}`,ohms(r)]),formula:'Rₜ = R₁ + R₂ + R₃',prompt:'What is the total resistance of the series chain?',correct:total,wrong:[rs[0]+rs[2],rs[1]*rs[2]],format:ohms,equation:a=>`Rₜ = ${rs.map(ohms).join(' + ')} = ${ohms(a)}`,success:'All three series resistances were added correctly.'});
+    return answerMission(rng,{id:'series-total',title:'Stack the barriers',accent:'Series resistance adds.',type:'series',metric:'TOTAL RESISTANCE',unit:'Ω',description:'Reduce three series resistors to a single equivalent resistance.',specs:rs.map((r,i)=>[`R${i+1}`,ohms(r)]),circuit:{topology:'series',source:null,components:rs.map((r,i)=>({kind:'resistor',label:`R${i+1}`,value:ohms(r)}))},formula:'Rₜ = R₁ + R₂ + R₃',prompt:'What is the total resistance of the series chain?',correct:total,wrong:[rs[0]+rs[2],rs[1]*rs[2]],format:ohms,equation:a=>`Rₜ = ${rs.map(ohms).join(' + ')} = ${ohms(a)}`,success:'All three series resistances were added correctly.'});
   }
 
   function seriesCurrentMission(rng) {
@@ -78,7 +86,7 @@
   const parallelPairs=[[3,6],[4,12],[5,20],[6,12],[8,8],[10,10]];
   function parallelTotalMission(rng) {
     const [r1,r2]=pick(rng,parallelPairs); const total=P.parallelResistance([r1,r2]);
-    return answerMission(rng,{id:'parallel-total',title:'Open another path',accent:'Parallel lowers resistance.',type:'parallel',metric:'EQUIV. RESISTANCE',unit:'Ω',description:`Reduce a ${ohms(r1)} and ${ohms(r2)} parallel network.`,specs:[['BRANCH 1',ohms(r1)],['BRANCH 2',ohms(r2)],['FIND','Rₜ']],formula:'Rₜ = (R₁R₂) ÷ (R₁ + R₂)',prompt:'What is the equivalent resistance?',correct:total,wrong:[(r1+r2)/2,r1+r2],format:ohms,equation:a=>`Rₜ = (${ohms(r1)} × ${ohms(r2)}) ÷ (${ohms(r1)} + ${ohms(r2)}) = ${ohms(a)}`,success:'The equivalent resistance is lower than either branch.'});
+    return answerMission(rng,{id:'parallel-total',title:'Open another path',accent:'Parallel lowers resistance.',type:'parallel',metric:'EQUIV. RESISTANCE',unit:'Ω',description:`Reduce a ${ohms(r1)} and ${ohms(r2)} parallel network.`,specs:[['BRANCH 1',ohms(r1)],['BRANCH 2',ohms(r2)],['FIND','Rₜ']],circuit:{topology:'parallel',source:null,components:[{kind:'resistor',label:'R1',value:ohms(r1)},{kind:'resistor',label:'R2',value:ohms(r2)}]},formula:'Rₜ = (R₁R₂) ÷ (R₁ + R₂)',prompt:'What is the equivalent resistance?',correct:total,wrong:[(r1+r2)/2,r1+r2],format:ohms,equation:a=>`Rₜ = (${ohms(r1)} × ${ohms(r2)}) ÷ (${ohms(r1)} + ${ohms(r2)}) = ${ohms(a)}`,success:'The equivalent resistance is lower than either branch.'});
   }
 
   function branchCurrentMission(rng) {
@@ -93,7 +101,7 @@
 
   function mixedEquivalentMission(rng) {
     const series=pick(rng,[2,3,4,5]); const [r1,r2]=pick(rng,parallelPairs); const parallel=P.parallelResistance([r1,r2]); const total=P.seriesResistance([series,parallel]);
-    return answerMission(rng,{id:'mixed-equivalent',title:'Reduce the mixed maze',accent:'Parallel first, then series.',type:'mixed',metric:'TOTAL RESISTANCE',unit:'Ω',description:`A ${ohms(series)} resistor is in series with ${ohms(r1)} ‖ ${ohms(r2)}.`,specs:[['SERIES',ohms(series)],['PARALLEL',`${ohms(r1)} ‖ ${ohms(r2)}`],['FIND','Rₜ']],formula:'Rₜ = Rs + (R₁R₂) ÷ (R₁ + R₂)',prompt:'What is the whole network’s equivalent resistance?',correct:total,wrong:[parallel,series+r1+r2],format:ohms,equation:a=>`Rₜ = ${ohms(series)} + (${ohms(r1)} ‖ ${ohms(r2)}) = ${ohms(series)} + ${ohms(parallel)} = ${ohms(a)}`,success:'You reduced the parallel section before adding the series resistor.'});
+    return answerMission(rng,{id:'mixed-equivalent',title:'Reduce the mixed maze',accent:'Parallel first, then series.',type:'mixed',metric:'TOTAL RESISTANCE',unit:'Ω',description:`A ${ohms(series)} resistor is in series with ${ohms(r1)} ‖ ${ohms(r2)}.`,specs:[['SERIES',ohms(series)],['PARALLEL',`${ohms(r1)} ‖ ${ohms(r2)}`],['FIND','Rₜ']],circuit:{topology:'mixed',source:null,components:[{kind:'resistor',label:'Rs',value:ohms(series)},{kind:'resistor',label:'R1',value:ohms(r1),branch:1},{kind:'resistor',label:'R2',value:ohms(r2),branch:2}]},formula:'Rₜ = Rs + (R₁R₂) ÷ (R₁ + R₂)',prompt:'What is the whole network’s equivalent resistance?',correct:total,wrong:[parallel,series+r1+r2],format:ohms,equation:a=>`Rₜ = ${ohms(series)} + (${ohms(r1)} ‖ ${ohms(r2)}) = ${ohms(series)} + ${ohms(parallel)} = ${ohms(a)}`,success:'You reduced the parallel section before adding the series resistor.'});
   }
 
   function mixedCurrentMission(rng) {

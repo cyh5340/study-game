@@ -7,11 +7,29 @@
   <meta name="mobile-web-app-capable" content="yes">
   <title>Circuit Runner</title>
   <meta name="description" content="Build the circuit. Become the current. Complete the loop before the fault catches you.">
-  <link rel="manifest" href="manifest.webmanifest?v=9">
+  <link rel="manifest" href="manifest.webmanifest?v=12">
   <link rel="icon" href="icons/app-icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="styles.css?v=9">
+  <link rel="stylesheet" href="styles.css?v=12">
 </head>
 <body>
+  <section id="appEntry" class="app-entry" hidden aria-labelledby="entryTitle">
+    <div class="entry-card panel">
+      <span class="brand-mark" aria-hidden="true">CR</span>
+      <p class="eyebrow">DC TRAINING GRID</p>
+      <h1 id="entryTitle">Circuit Runner</h1>
+      <p id="entryProgress" class="entry-progress">Campaign ready.</p>
+      <button id="continueCampaign" class="primary-button" type="button">Continue campaign <span>→</span></button>
+      <div class="entry-actions">
+        <button id="newCampaign" class="icon-button" type="button">NEW CAMPAIGN</button>
+        <button id="entryEndless" class="icon-button" type="button">ENDLESS RUN</button>
+      </div>
+      <fieldset class="entry-settings">
+        <legend>Settings</legend>
+        <label class="skip-animation-option"><input id="entrySkipAnimation" type="checkbox"><span aria-hidden="true"></span>Skip circuit animation</label>
+        <label class="skip-animation-option"><input id="entrySound" type="checkbox"><span aria-hidden="true"></span>Sound effects</label>
+      </fieldset>
+    </div>
+  </section>
   <div class="rotate-device" role="status" aria-live="polite">
     <div class="phone-icon" aria-hidden="true"><i></i></div>
     <strong>Rotate your device 90°</strong>
@@ -33,6 +51,7 @@
         <button id="soundButton" class="icon-button" type="button" aria-label="Toggle sound">SOUND: OFF</button>
       </div>
     </header>
+    <button id="homeButton" class="installed-home icon-button" type="button" hidden>← HOME</button>
 
     <section class="workspace">
       <aside class="briefing panel">
@@ -61,6 +80,11 @@
           <label><input type="radio" name="resistor" value="3500"><span><b>3.5 kΩ</b><small>Option C</small></span></label>
         </fieldset>
 
+        <label class="skip-animation-option">
+          <input id="skipAnimation" type="checkbox">
+          <span aria-hidden="true"></span>
+          Skip circuit animation
+        </label>
         <button id="startButton" class="primary-button" type="button" disabled>Close circuit &amp; run <span>→</span></button>
         <p id="selectionFeedback" class="selection-feedback" aria-live="polite">Select a component to arm the circuit.</p>
       </aside>
@@ -104,9 +128,9 @@
       <span>BUILD 0.5 // 30 MISSIONS + ENDLESS</span>
     </footer>
   </main>
-  <script src="physics.js?v=9"></script>
-  <script src="levels.js?v=9"></script>
-  <script src="game.js?v=9"></script>
-  <script src="pwa.js?v=9"></script>
+  <script src="physics.js?v=12"></script>
+  <script src="levels.js?v=12"></script>
+  <script src="game.js?v=12"></script>
+  <script src="pwa.js?v=12"></script>
 </body>
 </html>

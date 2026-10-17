@@ -34,6 +34,15 @@ body::before {
 button, input { font: inherit; }
 button { color: inherit; }
 .rotate-device { display: none; }
+.app-entry { position: fixed; inset: 0; z-index: 9000; display: grid; place-items: center; padding: 20px; background: radial-gradient(circle at 50% 35%, #12314a, #050b13 70%); }
+.entry-card { width: min(430px, 100%); padding: 32px; }
+.entry-card .brand-mark { margin-bottom: 20px; }
+.entry-card h1 { margin-bottom: 10px; }
+.entry-progress { margin: 0 0 24px; color: var(--muted); font: 12px/1.6 DM Mono; }
+.entry-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 10px 0 24px; }
+.entry-actions .icon-button { width: 100%; }
+.entry-settings { margin: 0; padding-top: 16px; border-top: 1px solid var(--line); }
+.installed-home { position: fixed; z-index: 50; top: 4px; right: 4px; background: rgba(6,16,27,.9); }
 
 .game-shell { width: min(1500px, 100%); margin: auto; padding: 18px 24px 10px; }
 .topbar { min-height: 70px; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; border-bottom: 1px solid var(--line); }
@@ -92,6 +101,13 @@ fieldset small { color: var(--muted); font-size: 11px; }
 fieldset input:checked + span { border-color: var(--cyan); color: var(--cyan); background: rgba(64,224,255,.08); transform: translateX(4px); }
 .primary-button { width: 100%; border: 0; padding: 14px 16px; display: flex; justify-content: space-between; background: var(--lime); color: #09110b; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; cursor: pointer; clip-path: polygon(0 0,calc(100% - 10px) 0,100% 10px,100% 100%,10px 100%,0 calc(100% - 10px)); }
 .primary-button:disabled { background: #253541; color: #6f8494; cursor: not-allowed; }
+.skip-animation-option { display: flex; align-items: center; gap: 9px; margin: 0 0 12px; color: var(--muted); font: 11px DM Mono; cursor: pointer; }
+.skip-animation-option input { position: absolute; opacity: 0; }
+.skip-animation-option span { width: 16px; height: 16px; border: 1px solid var(--line); display: grid; place-items: center; background: #091522; }
+.skip-animation-option input:checked + span { border-color: var(--cyan); background: var(--cyan); }
+.skip-animation-option input:checked + span::after { content: '✓'; color: #07111d; font-weight: 900; }
+.skip-animation-option input:focus-visible + span { outline: 2px solid var(--lime); outline-offset: 2px; }
+body[data-game-mode="endless"] .skip-animation-option { display: none; }
 .selection-feedback { min-height: 32px; color: var(--muted); font: 10px/1.5 DM Mono; }
 
 .playfield { min-width: 0; overflow: hidden; }
@@ -184,6 +200,35 @@ footer strong { color: #91a9ba; }
 @keyframes rotate-phone {
   0%, 18% { transform: rotate(0deg); }
   50%, 82%, 100% { transform: rotate(90deg); }
+}
+
+body.installed-mode .topbar, body.installed-mode footer { display: none; }
+body.installed-mode .game-shell { padding-top: 8px; }
+body.installed-mode .workspace { padding-top: 0; }
+body.installed-mode .installed-home:not([hidden]) { display: block; }
+
+@media (max-height: 600px) and (orientation: landscape) {
+  body.installed-mode .workspace { height: calc(100vh - 16px); }
+  body.installed-mode .briefing { max-height: 100%; padding: 10px 12px; }
+  body.installed-mode .briefing .eyebrow, body.installed-mode .briefing .lede { display: none; }
+  body.installed-mode .briefing h1 { font-size: 20px; }
+  body.installed-mode .briefing .lede { margin: 6px 0; font-size: 10px; line-height: 1.25; }
+  body.installed-mode .spec-grid { margin: 6px 0; }
+  body.installed-mode .spec-grid div { padding: 6px; }
+  body.installed-mode .spec-grid strong { margin-top: 2px; font-size: 12px; }
+  body.installed-mode .equation-card { padding: 7px 9px; }
+  body.installed-mode .equation-card > div { margin: 5px 0; font-size: 15px; }
+  body.installed-mode .live-equation { min-height: 25px; margin-bottom: 5px; padding: 4px 6px; }
+  body.installed-mode fieldset { margin: 6px 0; }
+  body.installed-mode #resistorChoices { display: grid; grid-template-columns: repeat(3,1fr); gap: 4px; }
+  body.installed-mode #resistorChoices legend { grid-column: 1 / -1; margin-bottom: 2px; }
+  body.installed-mode #resistorChoices label { margin: 0; }
+  body.installed-mode #resistorChoices span { height: 34px; justify-content: center; padding: 4px; }
+  body.installed-mode #resistorChoices small { display: none; }
+  body.installed-mode .skip-animation-option { margin-bottom: 5px; }
+  body.installed-mode .primary-button { padding: 9px 12px; }
+  body.installed-mode .selection-feedback { min-height: 18px; margin: 5px 0 0; }
+  body.installed-mode .canvas-wrap { max-height: calc(100vh - 108px); }
 }
 
 @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; transition-duration: .01ms !important; } }

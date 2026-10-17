@@ -16,6 +16,13 @@ const bossMeter = document.querySelector('#bossMeter');
 const pathLabel = document.querySelector('#pathLabel');
 const campaignModeButton = document.querySelector('#campaignMode');
 const endlessModeButton = document.querySelector('#endlessMode');
+const skipAnimation = document.querySelector('#skipAnimation');
+const soundButton = document.querySelector('#soundButton');
+const appEntry = document.querySelector('#appEntry');
+const entryProgress = document.querySelector('#entryProgress');
+const entrySkipAnimation = document.querySelector('#entrySkipAnimation');
+const entrySound = document.querySelector('#entrySound');
+const homeButton = document.querySelector('#homeButton');
 let levels = window.CircuitLevelFactory.createCampaign();
 const physics = window.CircuitPhysics;
 let gameMode = 'campaign';
@@ -28,12 +35,59 @@ const track = { left: 140, right: 860, top: 105, bottom: 555, radius: 76 };
 const perimeter = 2 * ((track.right - track.left) + (track.bottom - track.top));
 const laneOffsets = [-20, 0, 20];
 
-let levelIndex = 0;
+const installedMode = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+let campaignProgress = readStored('circuitRunner.progress', { nextLevel:0, completed:0 });
+let soundEnabled = readStored('circuitRunner.sound', false);
+let levelIndex = Math.max(0, Math.min(levels.length - 1, campaignProgress.nextLevel || 0));
 let selectedR = null;
 let completedLevel = false;
 let animationId = null;
 let lastTime = 0;
 let state = makeState();
+
+skipAnimation.checked = readStored('circuitRunner.skipAnimation', false) === true;
+entrySkipAnimation.checked = skipAnimation.checked;
+entrySound.checked = soundEnabled;
+updateSoundLabel();
+skipAnimation.addEventListener('change', () => {
+  entrySkipAnimation.checked = skipAnimation.checked;
+  writeStored('circuitRunner.skipAnimation', skipAnimation.checked);
+});
+entrySkipAnimation.addEventListener('change', () => { skipAnimation.checked = entrySkipAnimation.checked; writeStored('circuitRunner.skipAnimation', skipAnimation.checked); });
+entrySound.addEventListener('change', () => setSound(entrySound.checked));
+soundButton.addEventListener('click', () => setSound(!soundEnabled));
+
+function readStored(key, fallback) {
+  try { const value=localStorage.getItem(key); return value === null ? fallback : JSON.parse(value); } catch (_) { return fallback; }
+}
+function writeStored(key, value) { try { localStorage.setItem(key, JSON.stringify(value)); } catch (_) {} }
+function setSound(enabled) { soundEnabled=enabled; entrySound.checked=enabled; writeStored('circuitRunner.sound', enabled); updateSoundLabel(); }
+function updateSoundLabel() { soundButton.textContent=`SOUND: ${soundEnabled ? 'ON' : 'OFF'}`; }
+function playTone(frequency) {
+  if (!soundEnabled) return;
+  const AudioContext=window.AudioContext || window.webkitAudioContext;
+  if (!AudioContext) return;
+  const audio=new AudioContext(), oscillator=audio.createOscillator(), gain=audio.createGain();
+  oscillator.frequency.value=frequency; gain.gain.setValueAtTime(.05,audio.currentTime); gain.gain.exponentialRampToValueAtTime(.001,audio.currentTime+.16);
+  oscillator.connect(gain);gain.connect(audio.destination);oscillator.onended=()=>audio.close();oscillator.start();oscillator.stop(audio.currentTime+.16);
+}
+
+function refreshEntry() {
+  const next=(campaignProgress.nextLevel || 0)+1;
+  entryProgress.textContent=campaignProgress.completed ? `${campaignProgress.completed} missions completed · Continue at mission ${next} of ${levels.length}.` : `Start mission 1 of ${levels.length}. Your progress and settings save on this device.`;
+}
+function openEntry() {
+  cancelAnimationFrame(animationId);state.mode='idle';refreshEntry();appEntry.hidden=false;homeButton.hidden=true;
+}
+function launchFromEntry(mode, resetCampaign=false) {
+  if (resetCampaign) { campaignProgress={nextLevel:0,completed:0};writeStored('circuitRunner.progress',campaignProgress);levels=window.CircuitLevelFactory.createCampaign(); }
+  levelIndex=Math.max(0,Math.min(levels.length-1,campaignProgress.nextLevel || 0));
+  appEntry.hidden=true;homeButton.hidden=false;setGameMode(mode);
+}
+document.querySelector('#continueCampaign').addEventListener('click',()=>launchFromEntry('campaign'));
+document.querySelector('#newCampaign').addEventListener('click',()=>launchFromEntry('campaign',true));
+document.querySelector('#entryEndless').addEventListener('click',()=>launchFromEntry('endless'));
+homeButton.addEventListener('click',openEntry);
 
 function getLevel() { return gameMode === 'endless' ? endlessMission : levels[levelIndex]; }
 
@@ -160,6 +214,15 @@ function startGame() {
   resultOverlay.hidden = true;
   choices.disabled = true;
   startButton.disabled = true;
+  if (gameMode === 'campaign' && skipAnimation.checked) {
+    const result = electricalResult(selectedR);
+    state.progress = result.safe ? 1 : 0;
+    lapReadout.textContent = result.safe ? '1 / 1' : '0 / 1';
+    voltageReadout.textContent = '0.0 V';
+    finish(result.safe ? 'win' : 'failed');
+    draw();
+    return;
+  }
   lastTime = performance.now();
   cancelAnimationFrame(animationId);
   animationId = requestAnimationFrame(loop);
@@ -352,6 +415,11 @@ function finish(type) {
       : ['MISSION FAILED', 'Target missed', state.current > level.target ? 'The calculated result is above the required target.' : 'The calculated result is below the required target.', level.equation(selectedR, state.current)];
   [label.textContent, title.textContent, message.textContent, equation.textContent] = values;
   completedLevel = type === 'win';
+  if (completedLevel && gameMode === 'campaign') {
+    campaignProgress={nextLevel:(levelIndex+1)%levels.length,completed:Math.min(levels.length,Math.max(campaignProgress.completed || 0,levelIndex+1))};
+    writeStored('circuitRunner.progress',campaignProgress);
+  }
+  playTone(completedLevel ? 660 : 180);
   retryButton.firstChild.textContent = completedLevel ? (levelIndex === levels.length - 1 ? 'Restart campaign ' : 'Next mission ') : 'Run again ';
   resultOverlay.hidden = false;
   choices.disabled = false;
@@ -459,40 +527,64 @@ function drawCircuit() {
   ctx.setLineDash([4,11]);
   roundedRectPath(track.left,track.top,track.right-track.left,track.bottom-track.top,track.radius);
   ctx.strokeStyle='rgba(185,255,74,.25)';ctx.lineWidth=1;ctx.stroke();ctx.setLineDash([]);
-  if (getLevel().type === 'parallel') {
-    ctx.strokeStyle='rgba(64,224,255,.45)';ctx.lineWidth=4;ctx.beginPath();
-    ctx.moveTo(520,555);ctx.lineTo(545,485);ctx.lineTo(690,485);ctx.lineTo(720,555);ctx.stroke();
-    componentLabel(570,466,'PARALLEL BRANCH','R₂');
-  }
 }
 
 function drawComponents() {
   const level = getLevel();
-  const sourceLabel = `+${sourceVoltage(level)} V`;
-  componentLabel(170,590,'BATTERY',sourceLabel);
-  ctx.fillStyle='#142b3d';ctx.fillRect(194,518,56,74);
-  ctx.fillStyle='#b9ff4a';ctx.fillRect(209,501,26,18);
-  ctx.fillStyle='#07111d';ctx.font='700 22px Manrope';ctx.textAlign='center';ctx.fillText('+',222,548);
+  const circuit = level.circuit;
+  const components = circuit.components.map(component => component.value === '?' && selectedR
+    ? { ...component, value:level.choices.find(choice => choice.value === selectedR)?.label || component.value }
+    : component);
+  ctx.strokeStyle='rgba(64,224,255,.48)'; ctx.lineWidth=4;
+  if (circuit.source) drawSource(220,555,circuit.source);
+  if (circuit.topology === 'parallel') drawParallelComponents(components, circuit.source ? 340 : 230, 790);
+  else if (circuit.topology === 'mixed') drawMixedComponents(components, circuit.source ? 330 : 220, 805);
+  else drawSeriesComponents(components, circuit.source ? 330 : 200, 820);
 
-  componentLabel(385,500,gameMode === 'endless' ? 'CHARGE RAIL' : 'MISSING RESISTOR', gameMode === 'endless' ? `${state.pickups} PICKUPS` : selectedR ? `${selectedR >= 1000 ? selectedR/1000+' k' : selectedR} Ω` : '? Ω');
-  ctx.strokeStyle=gameMode === 'endless'?'#40e0ff':selectedR && electricalResult(selectedR).safe?'#b9ff4a':selectedR?'#ff704d':'#5d7588';ctx.lineWidth=5;ctx.beginPath();
-  const ry=555;ctx.moveTo(350,ry);[0,1,2,3,4,5].forEach((_,i)=>ctx.lineTo(370+i*20,ry+(i%2?14:-14)));ctx.lineTo(490,ry);ctx.stroke();
-
-  const device = {led:['LED BEACON','2 V DROP'],motor:['DC MOTOR','3 A RATED'],heater:['HEATER','RESISTIVE LOAD'],series:['SERIES GATE','ONE CURRENT PATH'],meter:['VOLTMETER','CONNECTED ACROSS'],parallel:['SOURCE LOAD','MULTIPLE PATHS'],mixed:['MIXED NETWORK','REDUCE IN STAGES'],power:['POWER CORE','ENERGY / SECOND'],boss:['FUSE CORE','CURRENT PROTECTION']}[level.type] || ['CIRCUIT LOAD','TARGET DEVICE'];
-  componentLabel(798,580,device[0],device[1]);
-  const ratio = gameMode === 'endless' ? 1 : selectedR ? electricalResult(selectedR).ratio : .1;
-  const glow = state.mode !== 'idle' ? Math.min(1,ratio) : .1;
-  ctx.shadowBlur=35*glow;ctx.shadowColor=ratio>1.4?'#ff4b3e':'#40e0ff';ctx.fillStyle=ratio>1.4?'#ff4b3e':`rgba(64,224,255,${.3+.7*glow})`;
-  ctx.beginPath();ctx.arc(804,533,23,Math.PI,0);ctx.lineTo(827,557);ctx.lineTo(781,557);ctx.closePath();ctx.fill();ctx.shadowBlur=0;
-
-  ctx.textAlign='left';ctx.fillStyle='#b9ff4a';ctx.font='500 11px DM Mono';ctx.fillText(level.specs[2].join(': '),690,617);
+  ctx.textAlign='right';ctx.fillStyle='#b9ff4a';ctx.font='500 11px DM Mono';ctx.fillText(`${level.metric}: ${level.specs.find(([label]) => label === 'FIND')?.[1] || level.specs.at(-1)[1]}`,850,617);
 
   // Direction markers make the intended conventional-current path explicit.
   ctx.fillStyle='rgba(64,224,255,.65)';ctx.font='500 13px DM Mono';ctx.textAlign='center';
   ctx.fillText('CURRENT  →',585,545);
-  ctx.fillText('→',300,560);
 
   ctx.fillStyle='#ff704d';ctx.fillRect(843,275,34,46);ctx.fillStyle='#08121e';ctx.font='700 18px Manrope';ctx.fillText('!',860,304);
+}
+
+function drawSource(x,y,value) {
+  ctx.strokeStyle='#b9ff4a';ctx.lineWidth=4;ctx.beginPath();ctx.moveTo(x-18,y-25);ctx.lineTo(x-18,y+25);ctx.moveTo(x+2,y-15);ctx.lineTo(x+2,y+15);ctx.stroke();
+  componentLabel(x-34,y+38,'SOURCE',value);
+}
+
+function drawSeriesComponents(components,left,right) {
+  if (!components.length) return;
+  const step=(right-left)/components.length;
+  components.forEach((component,index)=>drawSchematicComponent(left+step*(index+.5),555,component));
+}
+
+function drawParallelComponents(components,left,right) {
+  const top=components[0], bottom=components[1];
+  ctx.beginPath();ctx.moveTo(left,555);ctx.lineTo(left+35,500);ctx.lineTo(right-35,500);ctx.lineTo(right,555);ctx.moveTo(left,555);ctx.lineTo(left+35,590);ctx.lineTo(right-35,590);ctx.lineTo(right,555);ctx.stroke();
+  if (top) drawSchematicComponent((left+right)/2,500,top);
+  if (bottom) drawSchematicComponent((left+right)/2,590,bottom);
+  components.slice(2).forEach((component,index)=>drawSchematicComponent(left+80+index*120,555,component));
+}
+
+function drawMixedComponents(components,left,right) {
+  if (components[0]) drawSchematicComponent(left+80,555,components[0]);
+  drawParallelComponents(components.slice(1),left+180,right);
+}
+
+function drawSchematicComponent(x,y,component) {
+  const width=92;
+  ctx.save();ctx.fillStyle='#07111d';ctx.fillRect(x-width/2-8,y-22,width+16,44);
+  ctx.strokeStyle=component.kind === 'resistor' ? '#b9ff4a' : '#40e0ff';ctx.lineWidth=4;ctx.beginPath();
+  if (component.kind === 'resistor') {
+    ctx.moveTo(x-width/2,y);for(let i=0;i<6;i++)ctx.lineTo(x-width/2+15+i*13,y+(i%2?10:-10));ctx.lineTo(x+width/2,y);
+  } else {
+    ctx.arc(x,y,18,0,Math.PI*2);
+  }
+  ctx.stroke();ctx.restore();
+  componentLabel(x-width/2,y+32,component.label,component.value);
 }
 
 function componentLabel(x,y,label,value) {
@@ -523,4 +615,6 @@ function drawBoss() {
   ctx.fillStyle='#130907';ctx.beginPath();ctx.arc(3,-5,3,0,Math.PI*2);ctx.arc(3,5,3,0,Math.PI*2);ctx.fill();ctx.restore();ctx.shadowBlur=0;
 }
 
+if (installedMode) { document.body.classList.add('installed-mode'); homeButton.hidden=false; }
 renderLevel();
+if (installedMode) openEntry();

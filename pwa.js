@@ -4,7 +4,7 @@
   let deferredInstall = null;
 
   if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js?v=9', { updateViaCache: 'none' }));
+    window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js?v=12', { updateViaCache: 'none' }));
   }
 
   window.addEventListener('beforeinstallprompt', event => {

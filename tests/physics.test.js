@@ -23,6 +23,9 @@ for (let seed = 1; seed <= 500; seed += 1) {
   assert.equal(levels.length, 30);
   signatures.add(levels.map(level => JSON.stringify(level.specs)).join('|'));
   levels.forEach(level => {
+    assert.ok(level.circuit, `${level.id}: mission must describe its circuit`);
+    assert.ok(['series','parallel','mixed'].includes(level.circuit.topology), `${level.id}: circuit topology must be renderable`);
+    assert.ok(level.circuit.components.length > 0, `${level.id}: circuit must include its question components`);
     const correct = level.correctValue;
     assert.equal(new Set(level.choices.map(choice => choice.value)).size, 3, `${level.id}: choices must be unique`);
     assert.ok(level.choices.some(choice => choice.value === correct), `${level.id}: correct choice must be offered`);
@@ -31,6 +34,11 @@ for (let seed = 1; seed <= 500; seed += 1) {
     assert.ok(!P.nearlyEqual(level.calculate(choice.value), level.target), `${level.id}: distractor must not equal target`);
     });
   });
+  const seriesTotal = levels.find(level => level.id.startsWith('series-total'));
+  assert.equal(seriesTotal.circuit.components.length, 3, 'three-resistor question must render three resistors');
+  const parallelTotal = levels.find(level => level.id.startsWith('parallel-total'));
+  assert.equal(parallelTotal.circuit.topology, 'parallel', 'parallel question must render parallel branches');
+  assert.equal(parallelTotal.circuit.components.length, 2, 'two-branch question must render both resistors');
 }
 
 assert.deepEqual(
