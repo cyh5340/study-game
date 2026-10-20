@@ -1,13 +1,13 @@
-const CACHE_NAME = 'circuit-runner-v12';
+const CACHE_NAME = 'circuit-runner-v14';
 const APP_FILES = [
   './',
-  './index.html?v=12',
-  './styles.css?v=12',
-  './physics.js?v=12',
-  './levels.js?v=12',
-  './game.js?v=12',
-  './pwa.js?v=12',
-  './manifest.webmanifest?v=12',
+  './index.html?v=14',
+  './styles.css?v=14',
+  './physics.js?v=14',
+  './levels.js?v=14',
+  './game.js?v=14',
+  './pwa.js?v=14',
+  './manifest.webmanifest?v=14',
   './icons/app-icon.svg'
 ];
 
@@ -31,10 +31,10 @@ self.addEventListener('fetch', event => {
       fetch(event.request)
         .then(response => {
           const copy = response.clone();
-          caches.open(CACHE_NAME).then(cache => cache.put('./index.html?v=12', copy));
+          caches.open(CACHE_NAME).then(cache => cache.put('./index.html?v=14', copy));
           return response;
         })
-        .catch(() => caches.match('./index.html?v=12'))
+        .catch(() => caches.match('./index.html?v=14'))
     );
     return;
   }

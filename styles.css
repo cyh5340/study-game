@@ -131,7 +131,12 @@ canvas { display: block; width: 100%; height: 100%; }
 .controls-bar { min-height: 48px; display: flex; align-items: center; justify-content: space-between; padding: 8px 18px; color: var(--muted); font: 10px DM Mono; }
 kbd { border: 1px solid var(--line); padding: 3px 6px; color: var(--ink); font: inherit; }
 .mobile-controls { display: none; gap: 6px; }
-.mobile-controls button { width: 44px; height: 36px; border: 1px solid var(--line); background: #102131; }
+.mobile-controls button { width: 44px; height: 36px; border: 1px solid var(--line); background: #102131; touch-action: manipulation; }
+@media (pointer: coarse) {
+  .controls-bar p { display: none; }
+  .mobile-controls { display: flex; width: 100%; justify-content: center; }
+  .mobile-controls button { width: 56px; }
+}
 footer { display: flex; justify-content: space-between; color: #607689; font: 9px DM Mono; letter-spacing: .04em; }
 footer strong { color: #91a9ba; }
 
@@ -190,10 +195,16 @@ footer strong { color: #91a9ba; }
   .equation-card { padding: 10px; }
   fieldset { margin: 12px 0 8px; }
   fieldset span { padding: 8px 10px; }
-  .canvas-wrap { min-height: 0; }
-  .telemetry { min-height: 58px; }
-  .telemetry > div { padding: 9px 12px; }
-  .controls-bar { min-height: 42px; }
+  /* ponytail: fit canvas + telemetry + controls in one screen; canvas letterboxes instead of pushing the status off-screen */
+  .workspace { height: calc(100dvh - 72px); }
+  .playfield { display: flex; flex-direction: column; }
+  .canvas-wrap { flex: 1; min-height: 0; aspect-ratio: auto; }
+  canvas { object-fit: contain; }
+  .canvas-overlay { display: none; }
+  .telemetry { min-height: 0; }
+  .telemetry > div { padding: 6px 12px; }
+  .telemetry strong { margin-top: 3px; font-size: 13px; }
+  .controls-bar { min-height: 42px; padding: 3px 18px; }
   footer { display: none; }
 }
 
@@ -208,7 +219,7 @@ body.installed-mode .workspace { padding-top: 0; }
 body.installed-mode .installed-home:not([hidden]) { display: block; }
 
 @media (max-height: 600px) and (orientation: landscape) {
-  body.installed-mode .workspace { height: calc(100vh - 16px); }
+  body.installed-mode .workspace { height: calc(100dvh - 16px); }
   body.installed-mode .briefing { max-height: 100%; padding: 10px 12px; }
   body.installed-mode .briefing .eyebrow, body.installed-mode .briefing .lede { display: none; }
   body.installed-mode .briefing h1 { font-size: 20px; }
@@ -228,7 +239,6 @@ body.installed-mode .installed-home:not([hidden]) { display: block; }
   body.installed-mode .skip-animation-option { margin-bottom: 5px; }
   body.installed-mode .primary-button { padding: 9px 12px; }
   body.installed-mode .selection-feedback { min-height: 18px; margin: 5px 0 0; }
-  body.installed-mode .canvas-wrap { max-height: calc(100vh - 108px); }
 }
 
 @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; transition-duration: .01ms !important; } }

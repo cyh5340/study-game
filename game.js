@@ -88,6 +88,15 @@ document.querySelector('#continueCampaign').addEventListener('click',()=>launchF
 document.querySelector('#newCampaign').addEventListener('click',()=>launchFromEntry('campaign',true));
 document.querySelector('#entryEndless').addEventListener('click',()=>launchFromEntry('endless'));
 homeButton.addEventListener('click',openEntry);
+// ponytail: browsers only allow orientation lock while fullscreen (Android/Chrome); iOS Safari has no lock API, so it keeps the rotate prompt.
+const rotatePrompt=document.querySelector('.rotate-device');
+if (document.fullscreenEnabled && screen.orientation?.lock) {
+  rotatePrompt.querySelector('strong').textContent='Tap to play in landscape';
+  rotatePrompt.querySelector('span').textContent='Or rotate your device 90°.';
+  rotatePrompt.addEventListener('click',()=>{
+    document.documentElement.requestFullscreen().then(()=>screen.orientation.lock('landscape')).catch(()=>{});
+  });
+}
 
 function getLevel() { return gameMode === 'endless' ? endlessMission : levels[levelIndex]; }
 
@@ -245,6 +254,10 @@ function moveLane(direction) {
   state.targetLane = Math.max(0, Math.min(2, state.targetLane + direction));
 }
 
+function togglePause() {
+  state.mode = state.mode === 'paused' ? 'running' : state.mode === 'running' ? 'paused' : state.mode;
+}
+
 function jump() {
   if (state.mode === 'running' && state.jumping <= 0) state.jumping = 1;
 }
@@ -254,7 +267,7 @@ window.addEventListener('keydown', (event) => {
   if (event.code === 'ArrowLeft') moveLane(-1);
   if (event.code === 'ArrowRight') moveLane(1);
   if (event.code === 'Space') jump();
-  if (event.code === 'KeyP') state.mode = state.mode === 'paused' ? 'running' : state.mode === 'running' ? 'paused' : state.mode;
+  if (event.code === 'KeyP') togglePause();
 });
 
 document.querySelectorAll('[data-action]').forEach((button) => {
@@ -262,6 +275,7 @@ document.querySelectorAll('[data-action]').forEach((button) => {
     if (button.dataset.action === 'left') moveLane(-1);
     if (button.dataset.action === 'right') moveLane(1);
     if (button.dataset.action === 'jump') jump();
+    if (button.dataset.action === 'pause') togglePause();
   });
 });
 
