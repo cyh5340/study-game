@@ -33,8 +33,7 @@ After the first successful load, the service worker caches every required file. 
 
 ## Controls
 
+- Click/tap the game: switch to the next rail
 - Left/Right: change rail
-- Space: pulse jump
-- P: pause
 
 The first playable mission asks the player to choose a series resistor that drives a 2 V LED at 20 mA from a 9 V supply.

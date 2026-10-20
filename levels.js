@@ -33,7 +33,8 @@
     return result;
   }
   function choices(rng, correct, wrong, formatter) {
-    const unique = [...new Set([correct, ...wrong].map(value => Number(value.toFixed(6))))].slice(0, 3);
+    // Dedupe on significant figures, not decimals: capacitor answers are micro-scale.
+    const unique = [...new Map([correct, ...wrong].map(value => [value.toPrecision(6), value])).values()].slice(0, 3);
     if (unique.length !== 3) throw new Error('Mission generator produced duplicate choices.');
     return shuffle(rng, unique.map(value => Object.freeze({ value, label: formatter(value) })));
   }
@@ -134,15 +135,61 @@
     return freeze({ ...rest, target:correct, calculate:value=>value, choices:choices(rng,correct,wrong,format), equation:(_,answer)=>equation(answer) }, correct);
   }
 
-  const generators = Object.freeze([ledMission,currentMission,resistanceMission,seriesTotalMission,seriesCurrentMission,voltageDropMission,parallelTotalMission,branchCurrentMission,totalCurrentMission,mixedEquivalentMission,mixedCurrentMission,sectionVoltageMission,powerVIMission,powerHeatMission,fuseMission]);
+  const microfarads=[10,22,47,100,220,470];
+  function capacitorChargeMission(rng) {
+    const capacitance=pick(rng,microfarads)*1e-6; const voltage=pick(rng,[5,6,9,12]); const charge=P.capacitorCharge(capacitance,voltage);
+    return answerMission(rng,{id:'capacitor-charge',title:'Fill the capacitor',accent:'Charge is C × V.',type:'capacitor',metric:'CHARGE',unit:'C',description:`A ${farads(capacitance)} capacitor is charged to ${volts(voltage)}.`,specs:[['SUPPLY',volts(voltage)],['CAPACITOR',farads(capacitance)],['FIND','CHARGE']],circuit:{topology:'series',source:volts(voltage),components:[{kind:'capacitor',label:'C',value:farads(capacitance)}]},formula:'Q = CV',prompt:'How much charge is stored on the plates?',correct:charge,wrong:[capacitance/voltage,charge/2],format:coulombs,equation:a=>`Q = ${farads(capacitance)} × ${volts(voltage)} = ${coulombs(a)}`,success:'Stored charge grows with both capacitance and voltage.'});
+  }
+
+  function capacitorEnergyMission(rng) {
+    const capacitance=pick(rng,microfarads)*1e-6; const voltage=pick(rng,[5,6,9,12]); const energy=P.capacitorEnergy(capacitance,voltage);
+    return answerMission(rng,{id:'capacitor-energy',title:'Store the pulse',accent:'Energy is ½CV².',type:'capacitor',metric:'STORED ENERGY',unit:'J',description:`A ${farads(capacitance)} capacitor is charged to ${volts(voltage)}.`,specs:[['SUPPLY',volts(voltage)],['CAPACITOR',farads(capacitance)],['FIND','ENERGY']],circuit:{topology:'series',source:volts(voltage),components:[{kind:'capacitor',label:'C',value:farads(capacitance)}]},formula:'E = ½CV²',prompt:'How much energy does the charged capacitor store?',correct:energy,wrong:[energy*2,energy/voltage],format:joules,equation:a=>`E = ½ × ${farads(capacitance)} × (${volts(voltage)})² = ${joules(a)}`,success:'Doubling the voltage would store four times the energy.'});
+  }
+
+  function seriesCapacitanceMission(rng) {
+    const [c1,c2]=pick(rng,parallelPairs).map(c=>c*10e-6); const total=P.seriesCapacitance([c1,c2]);
+    return answerMission(rng,{id:'series-capacitance',title:'Stack the plates',accent:'Series capacitance shrinks.',type:'capacitor',metric:'EQUIV. CAPACITANCE',unit:'F',description:`Combine ${farads(c1)} and ${farads(c2)} capacitors in series.`,specs:[['C1',farads(c1)],['C2',farads(c2)],['FIND','Cₜ']],circuit:{topology:'series',source:null,components:[{kind:'capacitor',label:'C1',value:farads(c1)},{kind:'capacitor',label:'C2',value:farads(c2)}]},formula:'Cₜ = (C₁C₂) ÷ (C₁ + C₂)',prompt:'What is the equivalent capacitance of the series pair?',correct:total,wrong:[c1+c2,(c1+c2)/2],format:farads,equation:a=>`Cₜ = (${farads(c1)} × ${farads(c2)}) ÷ (${farads(c1)} + ${farads(c2)}) = ${farads(a)}`,success:'In series, capacitors combine like resistors in parallel.'});
+  }
+
+  function parallelCapacitanceMission(rng) {
+    const [c1,c2]=pick(rng,[[10,22],[22,47],[47,100],[100,220],[33,68]]).map(c=>c*1e-6); const total=P.parallelCapacitance([c1,c2]);
+    return answerMission(rng,{id:'parallel-capacitance',title:'Widen the plates',accent:'Parallel capacitance adds.',type:'capacitor',metric:'EQUIV. CAPACITANCE',unit:'F',description:`Combine ${farads(c1)} and ${farads(c2)} capacitors in parallel.`,specs:[['C1',farads(c1)],['C2',farads(c2)],['FIND','Cₜ']],circuit:{topology:'parallel',source:null,components:[{kind:'capacitor',label:'C1',value:farads(c1)},{kind:'capacitor',label:'C2',value:farads(c2)}]},formula:'Cₜ = C₁ + C₂',prompt:'What is the equivalent capacitance of the parallel pair?',correct:total,wrong:[P.seriesCapacitance([c1,c2]),Math.max(c1,c2)],format:farads,equation:a=>`Cₜ = ${farads(c1)} + ${farads(c2)} = ${farads(a)}`,success:'In parallel, capacitors combine like resistors in series.'});
+  }
+
+  function timeConstantMission(rng) {
+    const resistance=pick(rng,[1000,2200,4700,10000]); const capacitance=pick(rng,[10,22,47,100])*1e-6; const tau=P.rcTimeConstant(resistance,capacitance);
+    return answerMission(rng,{id:'rc-time-constant',title:'Time the charge-up',accent:'τ = RC.',type:'capacitor',metric:'TIME CONSTANT',unit:'s',description:`A ${ohms(resistance)} resistor charges a ${farads(capacitance)} capacitor.`,specs:[['RESISTOR',ohms(resistance)],['CAPACITOR',farads(capacitance)],['FIND','τ']],circuit:{topology:'series',source:null,components:[{kind:'resistor',label:'R',value:ohms(resistance)},{kind:'capacitor',label:'C',value:farads(capacitance)}]},formula:'τ = RC',prompt:'What is the RC time constant (time to reach about 63% charge)?',correct:tau,wrong:[tau*5,tau/2],format:seconds,equation:a=>`τ = ${ohms(resistance)} × ${farads(capacitance)} = ${seconds(a)}`,success:'After one time constant the capacitor is about 63% charged; after 5τ it is effectively full.'});
+  }
+
+  function chargingVoltageMission(rng) {
+    const supply=pick(rng,[5,9,10,12]); const resistance=pick(rng,[1000,2200,4700,10000]); const capacitance=pick(rng,[10,22,47,100])*1e-6;
+    const tau=P.rcTimeConstant(resistance,capacitance); const n=pick(rng,[1,2,3]); const time=n*tau; const voltage=P.capacitorChargingVoltage(supply,resistance,capacitance,time);
+    return answerMission(rng,{id:'charging-voltage',title:'Watch it charge',accent:'Exponential, not linear.',type:'capacitor',metric:'CAPACITOR VOLTAGE',unit:'V',description:`A ${volts(supply)} supply charges an empty ${farads(capacitance)} capacitor through ${ohms(resistance)}.`,specs:[['RC',`${ohms(resistance)} · ${farads(capacitance)}`],['TIME',seconds(time)],['FIND','VC']],circuit:{topology:'series',source:volts(supply),components:[{kind:'resistor',label:'R',value:ohms(resistance)},{kind:'capacitor',label:'C',value:farads(capacitance)}]},formula:'V = V₀(1 − e^(−t/RC))',prompt:`What is the capacitor voltage after ${seconds(time)}?`,correct:voltage,wrong:[supply*Math.exp(-n),supply],format:volts,equation:a=>`τ = ${seconds(tau)}, so V = ${volts(supply)} × (1 − e^(−${n})) = ${volts(a)}`,success:`After ${n}τ the capacitor is ${Math.round((1-Math.exp(-n))*100)}% charged; it never quite reaches the supply voltage.`});
+  }
+
+  function dischargingVoltageMission(rng) {
+    const initial=pick(rng,[5,9,10,12]); const resistance=pick(rng,[1000,2200,4700,10000]); const capacitance=pick(rng,[10,22,47,100])*1e-6;
+    const tau=P.rcTimeConstant(resistance,capacitance); const n=pick(rng,[1,2,3]); const time=n*tau; const voltage=P.capacitorDischargingVoltage(initial,resistance,capacitance,time);
+    return answerMission(rng,{id:'discharging-voltage',title:'Drain the capacitor',accent:'It decays, not drops.',type:'capacitor',metric:'CAPACITOR VOLTAGE',unit:'V',description:`A ${farads(capacitance)} capacitor charged to ${volts(initial)} discharges through ${ohms(resistance)}.`,specs:[['RC',`${ohms(resistance)} · ${farads(capacitance)}`],['TIME',seconds(time)],['FIND','VC']],circuit:{topology:'series',source:null,components:[{kind:'capacitor',label:'C',value:volts(initial)},{kind:'resistor',label:'R',value:ohms(resistance)}]},formula:'V = V₀e^(−t/RC)',prompt:`What voltage is left on the capacitor after ${seconds(time)}?`,correct:voltage,wrong:[initial*(1-Math.exp(-n)),initial*(1-n/5)],format:volts,equation:a=>`τ = ${seconds(tau)}, so V = ${volts(initial)} × e^(−${n}) = ${volts(a)}`,success:`After ${n}τ only ${Math.round(Math.exp(-n)*100)}% of the starting voltage remains; each τ removes 63% of what is left.`});
+  }
+
+  const sections = Object.freeze([
+    ['Ohm’s law',[ledMission,currentMission,resistanceMission]],
+    ['Series circuits',[seriesTotalMission,seriesCurrentMission,voltageDropMission]],
+    ['Parallel circuits',[parallelTotalMission,branchCurrentMission,totalCurrentMission]],
+    ['Mixed circuits',[mixedEquivalentMission,mixedCurrentMission,sectionVoltageMission]],
+    ['Power',[powerVIMission,powerHeatMission,fuseMission]],
+    ['Capacitors',[capacitorChargeMission,capacitorEnergyMission,seriesCapacitanceMission,parallelCapacitanceMission,timeConstantMission,chargingVoltageMission,dischargingVoltageMission]]
+  ]);
+  const generators = Object.freeze(sections.flatMap(([, sectionGenerators]) => sectionGenerators));
   function createCampaign(seed = randomSeed()) {
     const rng = seededRandom(seed);
-    // Two independently randomized passes turn the concept set into a 30-mission
-    // campaign. The equations stay fixed; only valid operands and answer choices vary.
-    return Object.freeze([0, 1].flatMap(pass => generators.map(generator => {
+    // Each section plays its concepts twice with fresh numbers before the next section.
+    // The equations stay fixed; only valid operands and answer choices vary.
+    return Object.freeze(sections.flatMap(([section, sectionGenerators]) => [0, 1].flatMap(pass => sectionGenerators.map(generator => {
       const mission = generator(rng);
-      return Object.freeze({ ...mission, id: `${mission.id}-${pass + 1}` });
-    })));
+      return Object.freeze({ ...mission, id: `${mission.id}-${pass + 1}`, section });
+    }))));
   }
 
   function createEndlessMission(rng) {
@@ -155,6 +202,10 @@
   function amps(v){ return v<1?`${number(v*1000)} mA`:`${number(v)} A`; }
   function volts(v){ return `${number(v)} V`; }
   function watts(v){ return `${number(v)} W`; }
+  function farads(v){ return `${number(v*1e6)} µF`; }
+  function coulombs(v){ return v<1e-3?`${number(v*1e6)} µC`:`${number(v*1e3)} mC`; }
+  function joules(v){ return v<1?`${number(v*1e3)} mJ`:`${number(v)} J`; }
+  function seconds(v){ return v<1?`${number(v*1e3)} ms`:`${number(v)} s`; }
 
   root.CircuitLevelFactory = Object.freeze({ createCampaign, createEndlessMission, seededRandom, missionCount:generators.length * 2 });
 })(typeof window !== 'undefined' ? window : globalThis);

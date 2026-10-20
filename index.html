@@ -7,9 +7,9 @@
   <meta name="mobile-web-app-capable" content="yes">
   <title>Circuit Runner</title>
   <meta name="description" content="Build the circuit. Become the current. Complete the loop before the fault catches you.">
-  <link rel="manifest" href="manifest.webmanifest?v=14">
+  <link rel="manifest" href="manifest.webmanifest?v=22">
   <link rel="icon" href="icons/app-icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="styles.css?v=14">
+  <link rel="stylesheet" href="styles.css?v=22">
 </head>
 <body>
   <section id="appEntry" class="app-entry" hidden aria-labelledby="entryTitle">
@@ -23,6 +23,10 @@
         <button id="newCampaign" class="icon-button" type="button">NEW CAMPAIGN</button>
         <button id="entryEndless" class="icon-button" type="button">ENDLESS RUN</button>
       </div>
+      <nav class="entry-sections" aria-labelledby="sectionsTitle">
+        <p id="sectionsTitle" class="eyebrow">SECTIONS</p>
+        <div id="entrySections"></div>
+      </nav>
       <fieldset class="entry-settings">
         <legend>Settings</legend>
         <label class="skip-animation-option"><input id="entrySkipAnimation" type="checkbox"><span aria-hidden="true"></span>Skip circuit animation</label>
@@ -113,25 +117,19 @@
         </div>
 
         <div class="controls-bar">
-          <p><kbd>←</kbd><kbd>→</kbd> switch rail &nbsp; <kbd>Space</kbd> pulse jump &nbsp; <kbd>P</kbd> pause</p>
-          <div class="mobile-controls">
-            <button data-action="left" aria-label="Move left">←</button>
-            <button data-action="jump" aria-label="Pulse jump">↑</button>
-            <button data-action="right" aria-label="Move right">→</button>
-            <button data-action="pause" aria-label="Pause">❚❚</button>
-          </div>
+          <p>Click the game or <kbd>←</kbd><kbd>→</kbd> to switch rail</p>
         </div>
       </section>
     </section>
 
     <footer>
       <span>Rule in play: <strong>current is the same everywhere in this series loop</strong></span>
-      <span>BUILD 0.5 // 30 MISSIONS + ENDLESS</span>
+      <span>BUILD 0.5 // 44 MISSIONS + ENDLESS</span>
     </footer>
   </main>
-  <script src="physics.js?v=14"></script>
-  <script src="levels.js?v=14"></script>
-  <script src="game.js?v=14"></script>
-  <script src="pwa.js?v=14"></script>
+  <script src="physics.js?v=22"></script>
+  <script src="levels.js?v=22"></script>
+  <script src="game.js?v=22"></script>
+  <script src="pwa.js?v=22"></script>
 </body>
 </html>
