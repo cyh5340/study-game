@@ -63,4 +63,14 @@ assert.deepEqual(
 );
 assert.ok(signatures.size > 450, 'campaign numbers should vary substantially between seeds');
 
+// "Always pick the middle value" must not be a winning strategy.
+const ranks = [0, 0, 0];
+for (let seed = 1; seed <= 500; seed += 1) {
+  factory.createCampaign(seed).forEach(level => {
+    ranks[[...level.choices].sort((a, b) => a.value - b.value).findIndex(choice => choice.value === level.correctValue)] += 1;
+  });
+}
+const medianShare = ranks[1] / (ranks[0] + ranks[1] + ranks[2]);
+assert.ok(medianShare < .5, `correct answer is the median value ${Math.round(medianShare * 100)}% of the time`);
+
 console.log(`Validated ${P.PHYSICS_RULES.length} deterministic rules across ${(500 * factory.missionCount).toLocaleString("en-US")} randomized mission variants.`);

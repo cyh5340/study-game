@@ -35,6 +35,8 @@ const H = canvas.height;
 const track = { left: 140, right: 860, top: 105, bottom: 555, radius: 76 };
 const perimeter = 2 * ((track.right - track.left) + (track.bottom - track.top));
 const laneOffsets = [-20, 0, 20];
+// LED sits second in the sourced series row (drawSeriesComponents(…, 330, 820) → x = 697.5).
+const LED_PROGRESS = (697.5 - track.left) / perimeter;
 
 const installedMode = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
 let campaignProgress = readStored('circuitRunner.progress', { nextLevel:0, completed:0 });
@@ -138,7 +140,9 @@ function makeState() {
     current: 0,
     voltage: 0,
     obstaclePhase: 0,
-    flash: 0
+    flash: 0,
+    failAnim: 0,
+    failType: null
     ,score: 0,
     gates: 0,
     nextGate: .82,
@@ -300,13 +304,36 @@ function loop(time) {
   if (state.mode === 'running') animationId = requestAnimationFrame(loop);
 }
 
+// Every failure freezes the run for a short fault animation before the result overlay.
+function fail(type) {
+  state.failAnim = .001;
+  state.failType = type;
+  state.flash = 1;
+  playTone(120, .4);
+}
+
 function update(dt) {
+  if (state.failAnim > 0) {
+    state.failAnim += dt;
+    state.flash = Math.max(0, state.flash - dt * 2);
+    if (state.failAnim > 1.4) gameMode === 'endless' ? finishEndless(state.failType) : finish(state.failType);
+    return;
+  }
   if (gameMode === 'endless') { updateEndless(dt); return; }
   const result = electricalResult(selectedR);
-  const speed = result.safe ? .105 : result.ratio > 1 ? .135 : .078;
+  const led = getLevel().type === 'led';
+  // LED overcurrent: the current rushes ahead (no chase) and burns the LED on arrival.
+  // Any other wrong answer (incl. LED undercurrent): the current crawls and the fault catches it.
+  const overcurrent = led && result.ratio > 1;
+  const speed = result.safe ? .105 : overcurrent ? .14 : led ? .06 : .09;
   state.progress += speed * dt;
-  const bossSpeed = result.ratio > 1 ? .142 : result.ratio < 1 ? .084 : .092;
+  const bossSpeed = result.safe || overcurrent ? .092 : led ? .09 : .125;
   state.bossProgress += bossSpeed * dt;
+  if (overcurrent && state.progress >= LED_PROGRESS) {
+    state.progress = LED_PROGRESS;
+    fail('fried'); // a burnt-out LED fails open: nothing moves past it
+    return;
+  }
   state.lane += (state.targetLane - state.lane) * Math.min(1, dt * 12);
   state.obstaclePhase += dt;
   state.flash = Math.max(0, state.flash - dt * 4);
@@ -314,7 +341,7 @@ function update(dt) {
   if (state.progress >= 1) {
     state.progress = 1;
     lapReadout.textContent = '1 / 1';
-    finish(result.safe ? 'win' : 'wrong');
+    if (result.safe) finish('win'); else fail('wrong');
     return;
   }
 
@@ -324,7 +351,7 @@ function update(dt) {
 
   const distance = Math.max(0, Math.min(1, state.progress - state.bossProgress));
   bossMeter.style.width = `${distance * 100}%`;
-  if (state.bossProgress >= state.progress - .018) finish('caught');
+  if (state.bossProgress >= state.progress - .018) fail('caught');
 
 }
 
@@ -362,10 +389,15 @@ function updateEndless(dt) {
       feedback.textContent = `Gate ${state.gates + 1}: correct — ${level.equation(level.correctValue, level.target)}`;
       liveEquation.dataset.status = 'safe';
       playTone(880);
+    } else if (level.type === 'led' && level.calculate(level.choices[Math.round(state.lane)].value) > level.target) {
+      fail('fried');
+      feedback.textContent = `LED fried — too little resistance. Correct: ${level.choices[correctLane].label}.`;
+      liveEquation.dataset.status = 'danger';
+      return; // keep this gate's circuit on screen for the burn-out
     } else {
       state.bossProgress += .07;
       state.flash = 1;
-      feedback.textContent = `Wrong lane. Correct: ${level.choices[correctLane].label}.`;
+      feedback.textContent = `${level.type === 'led' ? 'LED too dim — the fault gains. ' : 'Wrong lane. '}Correct: ${level.choices[correctLane].label}.`;
       liveEquation.dataset.status = 'danger';
       playTone(160, .25);
     }
@@ -376,7 +408,7 @@ function updateEndless(dt) {
 
   const lead = Math.max(0, Math.min(1, state.progress - state.bossProgress));
   bossMeter.style.width = `${lead * 100}%`;
-  if (state.bossProgress >= state.progress - .018) finishEndless();
+  if (state.bossProgress >= state.progress - .018) fail('caught');
 }
 
 function refreshEndlessGate() {
@@ -396,9 +428,9 @@ function refreshEndlessGate() {
   });
 }
 
-function finishEndless() {
+function finishEndless(reason) {
   state.mode = 'finished';
-  document.querySelector('#resultLabel').textContent = 'RUN OVER';
+  document.querySelector('#resultLabel').textContent = reason === 'fried' ? 'LED BURNT OUT · RUN OVER' : 'RUN OVER';
   document.querySelector('#resultTitle').textContent = `${Math.floor(state.progress * 600)} metres survived`;
   document.querySelector('#resultMessage').textContent = `${state.gates} circuit gates cleared · ${state.pickups} charge pickups · score ${state.score}`;
   document.querySelector('#resultEquation').textContent = 'Every gate used the same deterministic formulas as mission mode.';
@@ -425,6 +457,8 @@ function finish(type) {
   const level = getLevel();
   const values = type === 'win'
     ? ['MISSION COMPLETE', levelIndex === levels.length - 1 ? 'Training grid mastered' : `${level.title} complete`, level.success, level.equation(selectedR, state.current)]
+    : type === 'fried'
+      ? ['LED BURNT OUT', 'Too much current fried the LED', 'A burnt-out LED fails open: the series loop is broken, so no current can flow past it. Choose a larger resistor.', level.equation(selectedR, state.current)]
     : type === 'caught'
       ? ['FAULT OVERRUN', 'The fault caught the current', 'Recheck the selected value, then run the loop again.', level.equation(selectedR, state.current)]
       : ['MISSION FAILED', 'Target missed', state.current > level.target ? 'The calculated result is above the required target.' : 'The calculated result is below the required target.', level.equation(selectedR, state.current)];
@@ -482,6 +516,7 @@ function draw() {
     drawParticles();
     drawBoss();
     drawRunner();
+    if (state.failAnim > 0 && state.failType !== 'fried') drawFault();
   }
   if (state.flash > 0) {
     ctx.fillStyle = `rgba(255,70,55,${state.flash * .16})`;
@@ -596,7 +631,40 @@ function drawSchematicComponent(x,y,component) {
     ctx.arc(x,y,18,0,Math.PI*2);
   }
   ctx.stroke();ctx.restore();
+  if (component.kind === 'led' && state.mode !== 'idle') drawLedState(x,y);
+  if (component.kind === 'capacitor' && state.mode !== 'idle') drawCapacitorCharge(x,y);
   componentLabel(x-width/2,y+32,component.label,component.value);
+}
+
+// One lap = 5τ, so the fill follows 1 − e^(−t/τ): 63% at 1τ, 86% at 2τ, 95% at 3τ… (discharge mirrors it).
+function drawCapacitorCharge(x,y) {
+  const n=(state.progress%1 || (state.progress >= 1 ? 1 : 0))*5;
+  const charge=getLevel().id === 'discharging-voltage' ? Math.exp(-n) : 1-Math.exp(-n);
+  ctx.fillStyle=`rgba(64,224,255,${.25+charge*.6})`;
+  ctx.fillRect(x-5,y+18-36*charge,10,36*charge);
+  ctx.fillStyle='#40e0ff';ctx.font='500 12px DM Mono';ctx.textAlign='center';
+  ctx.fillText(`${Math.round(charge*100)}% · t = ${n.toFixed(1)}τ`,x,y-28);
+}
+
+// Lit once the current reaches it: brightness tracks the current ratio; overcurrent burns it out.
+function drawLedState(x,y) {
+  ctx.save();ctx.textAlign='center';ctx.font='500 12px DM Mono';
+  if (state.failType === 'fried') {
+    ctx.fillStyle='#1a0d0a';ctx.beginPath();ctx.arc(x,y,16,0,Math.PI*2);ctx.fill();
+    ctx.strokeStyle='#ff553d';ctx.lineWidth=3;ctx.beginPath();
+    ctx.moveTo(x-10,y-10);ctx.lineTo(x+10,y+10);ctx.moveTo(x+10,y-10);ctx.lineTo(x-10,y+10);ctx.stroke();
+    for (let i=0;i<3;i++) { // smoke puffs drifting up
+      ctx.fillStyle=`rgba(160,160,160,${Math.max(0,.5-state.failAnim*.3)})`;
+      ctx.beginPath();ctx.arc(x+(i-1)*9,y-24-state.failAnim*30-i*8,6+state.failAnim*4,0,Math.PI*2);ctx.fill();
+    }
+    ctx.fillStyle='#ff553d';ctx.fillText('BURNT OUT · OPEN CIRCUIT',x,y-34);
+  } else if (gameMode === 'campaign' && state.progress >= LED_PROGRESS) { // endless has no selectedR
+    const ratio=Math.min(1,electricalResult(selectedR).ratio);
+    ctx.shadowBlur=30*ratio;ctx.shadowColor='#b9ff4a';ctx.fillStyle=`rgba(185,255,74,${.15+.75*ratio})`;
+    ctx.beginPath();ctx.arc(x,y,15,0,Math.PI*2);ctx.fill();ctx.shadowBlur=0;
+    ctx.fillStyle='#b9ff4a';ctx.fillText(ratio < 1 ? 'DIM · CURRENT TOO LOW' : 'LIT',x,y-30);
+  }
+  ctx.restore();
 }
 
 function componentLabel(x,y,label,value) {
@@ -616,6 +684,19 @@ function drawRunner() {
   ctx.save();ctx.translate(p.x,p.y);ctx.rotate(p.angle);
   ctx.shadowBlur=24;ctx.shadowColor='#40e0ff';ctx.fillStyle='#eafcff';ctx.beginPath();ctx.arc(0,0,11,0,Math.PI*2);ctx.fill();
   ctx.fillStyle='#40e0ff';ctx.beginPath();ctx.moveTo(-23,0);ctx.lineTo(-8,-7);ctx.lineTo(-8,7);ctx.closePath();ctx.fill();ctx.restore();ctx.shadowBlur=0;
+}
+
+// Generic fault burst at the current's position (the LED draws its own burn-out).
+function drawFault() {
+  const p=trackPoint(state.progress,state.lane), t=state.failAnim;
+  ctx.save();ctx.strokeStyle='#ff553d';ctx.lineWidth=3;ctx.globalAlpha=Math.max(0,1-t/1.4);
+  for (let i=0;i<10;i++) {
+    const a=i*Math.PI/5, r=14+t*60;
+    ctx.beginPath();ctx.moveTo(p.x+Math.cos(a)*r*.4,p.y+Math.sin(a)*r*.4);ctx.lineTo(p.x+Math.cos(a)*r,p.y+Math.sin(a)*r);ctx.stroke();
+  }
+  ctx.globalAlpha=1;ctx.fillStyle='#ff553d';ctx.font='500 12px DM Mono';ctx.textAlign='center';
+  ctx.fillText(state.failType === 'wrong' ? 'TARGET MISSED' : 'FAULT OVERRUN',p.x,p.y-34);
+  ctx.restore();
 }
 
 function drawBoss() {

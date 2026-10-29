@@ -32,9 +32,18 @@
     }
     return result;
   }
+  // Distractors like [x/2, x*2] always bracket the answer, so "pick the middle value" would always win.
+  // Two times in three, mirror one distractor across the other (geometrically) so the answer is lowest, middle or highest.
+  function unbracket(rng, correct, wrong) {
+    const [low, high] = [...wrong].sort((a, b) => a - b);
+    if (wrong.length !== 2 || !(low < correct && correct < high)) return wrong;
+    const roll = rng();
+    if (roll < 1 / 3) return wrong;
+    return roll < 2 / 3 ? [low, low * low / correct] : [high, high * high / correct];
+  }
   function choices(rng, correct, wrong, formatter) {
     // Dedupe on significant figures, not decimals: capacitor answers are micro-scale.
-    const unique = [...new Map([correct, ...wrong].map(value => [value.toPrecision(6), value])).values()].slice(0, 3);
+    const unique = [...new Map([correct, ...unbracket(rng, correct, wrong)].map(value => [value.toPrecision(6), value])).values()].slice(0, 3);
     if (unique.length !== 3) throw new Error('Mission generator produced duplicate choices.');
     return shuffle(rng, unique.map(value => Object.freeze({ value, label: formatter(value) })));
   }
